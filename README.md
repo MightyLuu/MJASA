@@ -24,6 +24,9 @@ Place the `MJASA` folder into your KSP `GameData` directory.
 ## Screenshots
 
 ![Mission Archive](Images/Archive-Missions.png)
+
 ![Path Values](Images/Archive-Path.png)
-![Staging Values](Images/Archive-Path.png)
+
+![Staging Values](Images/Archive-Staging.png)
+
 ![CSV](Images/CSV.png)
