@@ -15,7 +15,7 @@ public class MJASA : MonoBehaviour
 
     private const string LOG_PATH      = "GameData/MJASA/mjasa-archive.csv";
     private const string SETTINGS_PATH = "GameData/MJASA/settings.cfg";
-    private const string TOOLBAR_ICON  = "MJASA/toolbar_icon"; // 38x38 PNG in GameData/MJASA/
+    private const string TOOLBAR_ICON  = "MJASA/toolbar_icon";
 
     private static readonly string CSV_HEADER =
         "kspTime,vesselName,universalTime,missionTitle,notes," +
@@ -31,7 +31,7 @@ public class MJASA : MonoBehaviour
     private bool showHistory = false;
 
     private Rect loggerRect  = new Rect(200, 200, 280, 180);
-    private Rect historyRect = new Rect(80, 80, 780, 420);
+    private Rect historyRect = new Rect(80, 80, 820, 460);
 
     private string  missionTitle = "";
     private string  notes        = "";
@@ -61,6 +61,12 @@ public class MJASA : MonoBehaviour
 
     private int pendingDeleteIndex = -1;
 
+    // -- Notes editing --
+    private int    editingNotesIndex = -1;   // row being edited (-1 = none)
+    private string editingNotesValue = "";
+    private bool    justOpenedEdit     = false; // true for exactly one frame after opening
+    private Vector2 editNotesScroll    = Vector2.zero;
+
     // -------------------------------------------------------------------------
     // Column layout per tab
     // -------------------------------------------------------------------------
@@ -73,16 +79,16 @@ public class MJASA : MonoBehaviour
     //  4 notes               9 turnShapeExponent   14 postStageDelay
 
     private static readonly int[] MISSION_COLS   = { 0, 1, 3, 4 };
-    private static readonly int[] TURNPATH_COLS  = { 0, 1, 10, 5, 6, 7, 8, 9 };
-    private static readonly int[] STAGING_COLS   = { 0, 1, 12, 13, 14, 15, 16 };
+    private static readonly int[] TURNPATH_COLS  = { 0, 1, 3, 10, 5, 6, 7, 8, 9 };
+    private static readonly int[] STAGING_COLS   = { 0, 1, 3, 12, 13, 14, 15, 16 };
 
-    private static readonly string[] MISSION_LABELS  = { "KSP time", "Vessel", "Mission title", "Notes" };
-    private static readonly string[] TURNPATH_LABELS = { "KSP time", "Vessel", "Orbit alt", "Start alt", "Start vel", "End alt", "End angle", "Shape %" };
-    private static readonly string[] STAGING_LABELS  = { "KSP time", "Vessel", "Stop at", "Pre delay", "Post delay", "Hotstaging", "Lead time" };
+    private static readonly string[] MISSION_LABELS  = { "KSP time", "Vessel", "Mission", "Notes" };
+    private static readonly string[] TURNPATH_LABELS = { "KSP time", "Vessel", "Mission", "Orbit alt", "Start alt", "Start vel", "End alt", "End angle", "Shape %" };
+    private static readonly string[] STAGING_LABELS  = { "KSP time", "Vessel", "Mission", "Autostage limit", "Pre delay", "Post delay", "Hotstaging", "Lead time" };
 
-    private static readonly int[] MISSION_WIDTHS  = { 150, 110, 120, 230 };
-    private static readonly int[] TURNPATH_WIDTHS = { 150, 100,  75,  65,  65,  65,  70,  65 };
-    private static readonly int[] STAGING_WIDTHS  = { 150, 110,  70,  70,  70,  75,  70 };
+    private static readonly int[] MISSION_WIDTHS  = { 150, 110, 120, 190 };
+    private static readonly int[] TURNPATH_WIDTHS = { 150, 100, 100,  75,  65,  65,  65,  70,  65 };
+    private static readonly int[] STAGING_WIDTHS  = { 150, 110, 100,  70,  70,  70,  75,  70 };
 
     // -------------------------------------------------------------------------
     // Lifecycle
@@ -135,6 +141,7 @@ public class MJASA : MonoBehaviour
         showLogger         = false;
         showHistory        = false;
         pendingDeleteIndex = -1;
+        CancelEdit();
     }
 
     // -------------------------------------------------------------------------
@@ -150,10 +157,8 @@ public class MJASA : MonoBehaviour
         {
             string[] parts = line.Split('=');
             if (parts.Length != 2) continue;
-
             string key   = parts[0].Trim();
             string value = parts[1].Trim();
-
             if (key == "autoOpenOnLaunch")
                 bool.TryParse(value, out autoOpenOnLaunch);
         }
@@ -173,7 +178,7 @@ public class MJASA : MonoBehaviour
     void OnGUI()
     {
         if (showLogger)
-            loggerRect = GUILayout.Window(123456, loggerRect, DrawLoggerWindow, "MechJeb Ascent & Staging Archive");
+            loggerRect = GUILayout.Window(123456, loggerRect, DrawLoggerWindow, "MJASA");
 
         if (showHistory)
             historyRect = GUILayout.Window(123457, historyRect, DrawHistoryWindow, "MJASA — Archive");
@@ -213,13 +218,13 @@ public class MJASA : MonoBehaviour
 
         GUILayout.Space(8);
 
-
         if (GUILayout.Button("Close"))
         {
             showLogger  = false;
             showHistory = false;
             toolbarButton?.SetFalse(makeCall: false);
         }
+
         GUILayout.Space(3);
 
         bool newAutoOpen = GUILayout.Toggle(autoOpenOnLaunch, " Auto-open on scene load");
@@ -228,7 +233,6 @@ public class MJASA : MonoBehaviour
             autoOpenOnLaunch = newAutoOpen;
             SaveSettings();
         }
-
 
         GUILayout.EndVertical();
         GUI.DragWindow();
@@ -240,9 +244,9 @@ public class MJASA : MonoBehaviour
 
         // -- Tab bar --
         GUILayout.BeginHorizontal();
-        if (GUILayout.Toggle(activeTab == Tab.Mission,  " Mission ",  GUI.skin.button)) activeTab = Tab.Mission;
-        if (GUILayout.Toggle(activeTab == Tab.TurnPath, " Turn path", GUI.skin.button)) activeTab = Tab.TurnPath;
-        if (GUILayout.Toggle(activeTab == Tab.Staging,  " Staging ",  GUI.skin.button)) activeTab = Tab.Staging;
+        if (GUILayout.Toggle(activeTab == Tab.Mission,  " Mission ",  GUI.skin.button)) { if (activeTab != Tab.Mission)  { activeTab = Tab.Mission;  CancelEdit(); } }
+        if (GUILayout.Toggle(activeTab == Tab.TurnPath, " Turn path", GUI.skin.button)) { if (activeTab != Tab.TurnPath) { activeTab = Tab.TurnPath; CancelEdit(); } }
+        if (GUILayout.Toggle(activeTab == Tab.Staging,  " Staging ",  GUI.skin.button)) { if (activeTab != Tab.Staging)  { activeTab = Tab.Staging;  CancelEdit(); } }
         GUILayout.EndHorizontal();
 
         GUILayout.Space(4);
@@ -268,10 +272,10 @@ public class MJASA : MonoBehaviour
             for (int c = 0; c < labels.Length; c++)
                 GUILayout.Label($"<b>{labels[c]}</b>", GUILayout.Width(widths[c]));
             if (isMission)
-                GUILayout.Label("<b></b>", GUILayout.Width(72));
+                GUILayout.Label("<b>Actions</b>", GUILayout.Width(112));
             GUILayout.EndHorizontal();
 
-            GUILayout.Space(2);
+            GUILayout.Space(3);
 
             int deleteTarget = -1;
 
@@ -279,6 +283,7 @@ public class MJASA : MonoBehaviour
             {
                 string[] row             = logEntries[r];
                 bool     isPendingDelete = pendingDeleteIndex == r;
+                bool     isEditing       = editingNotesIndex == r;
 
                 GUILayout.BeginHorizontal(isPendingDelete ? GUI.skin.box : GUIStyle.none);
 
@@ -287,30 +292,89 @@ public class MJASA : MonoBehaviour
                     int    colIdx = cols[c];
                     string cell   = colIdx < row.Length ? row[colIdx] : "";
 
-                    if (double.TryParse(cell,
-                            System.Globalization.NumberStyles.Any,
-                            System.Globalization.CultureInfo.InvariantCulture,
-                            out double num))
-                        cell = num.ToString("0.##");
+                    // Notes column: show edited value live while editing this row
+                    if (isMission && colIdx == 4 && isEditing)
+                    {
+                        GUILayout.Label(editingNotesValue, GUILayout.Width(widths[c]));
+                    }
+                    else
+                    {
+                        if (double.TryParse(cell,
+                                System.Globalization.NumberStyles.Any,
+                                System.Globalization.CultureInfo.InvariantCulture,
+                                out double num))
+                            cell = num.ToString("0.##");
 
-                    GUILayout.Label(cell, GUILayout.Width(widths[c]));
+                        GUILayout.Label(cell, GUILayout.Width(widths[c]));
+                    }
                 }
 
+                // Action buttons — Mission tab only
                 if (isMission)
                 {
-                    if (isPendingDelete)
+                    if (isEditing)
+                    {
+                        // Save / Cancel while editing
+                        if (GUILayout.Button("Save", GUILayout.Width(46)))
+                            CommitEdit(r, row);
+                        if (GUILayout.Button("X", GUILayout.Width(24)))
+                            CancelEdit();
+                    }
+                    else if (isPendingDelete)
                     {
                         if (GUILayout.Button("Del", GUILayout.Width(36))) deleteTarget = r;
                         if (GUILayout.Button("No",  GUILayout.Width(36))) pendingDeleteIndex = -1;
                     }
                     else
                     {
-                        if (GUILayout.Button("Delete", GUILayout.Width(72)))
+                        if (GUILayout.Button("Edit", GUILayout.Width(40)))
+                            OpenEdit(r, row);
+                        if (GUILayout.Button("Delete", GUILayout.Width(56)))
+                        {
                             pendingDeleteIndex = r;
+                            CancelEdit();
+                        }
                     }
                 }
 
                 GUILayout.EndHorizontal();
+
+                // Inline TextField — drawn as a separate row directly below
+                if (isMission && isEditing)
+                {
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Space(8);
+
+                    string controlName = $"mjasa_notes_{r}";
+
+                    editNotesScroll = GUILayout.BeginScrollView(
+                        editNotesScroll,
+                        alwaysShowHorizontal: false,
+                        alwaysShowVertical:   false,
+                        horizontalScrollbar:  GUIStyle.none,
+                        verticalScrollbar:    GUI.skin.verticalScrollbar,
+                        GUILayout.Width(historyRect.width - 80),
+                        GUILayout.Height(60));
+
+                    // Register the control name before drawing so FocusControl can find it
+                    GUI.SetNextControlName(controlName);
+                    editingNotesValue = GUILayout.TextArea(
+                        editingNotesValue,
+                        GUILayout.Width(historyRect.width - 100),
+                        GUILayout.ExpandHeight(true));
+
+                    GUILayout.EndScrollView();
+
+                    // Set focus exactly once, the first Repaint after opening
+                    if (justOpenedEdit && Event.current.type == EventType.Repaint)
+                    {
+                        GUI.FocusControl(controlName);
+                        justOpenedEdit = false;
+                    }
+
+                    GUILayout.EndHorizontal();
+                    GUILayout.Space(4);
+                }
             }
 
             GUILayout.EndScrollView();
@@ -319,6 +383,7 @@ public class MJASA : MonoBehaviour
             {
                 logEntries.RemoveAt(deleteTarget);
                 pendingDeleteIndex = -1;
+                CancelEdit();
                 SaveAllEntries();
             }
         }
@@ -326,12 +391,44 @@ public class MJASA : MonoBehaviour
         GUILayout.Space(6);
 
         GUILayout.BeginHorizontal();
-        if (GUILayout.Button("Refresh")) { pendingDeleteIndex = -1; LoadHistory(); }
-        if (GUILayout.Button("Close"))   { pendingDeleteIndex = -1; showHistory = false; }
+        if (GUILayout.Button("Refresh")) { pendingDeleteIndex = -1; CancelEdit(); LoadHistory(); }
+        if (GUILayout.Button("Close"))   { pendingDeleteIndex = -1; CancelEdit(); showHistory = false; }
         GUILayout.EndHorizontal();
 
         GUILayout.EndVertical();
         GUI.DragWindow();
+    }
+
+    // -------------------------------------------------------------------------
+    // Notes edit helpers
+    // -------------------------------------------------------------------------
+
+    void OpenEdit(int rowIndex, string[] row)
+    {
+        editingNotesIndex = rowIndex;
+        editingNotesValue = row.Length > 4 ? row[4] : "";
+        justOpenedEdit    = true;
+        pendingDeleteIndex = -1;
+    }
+
+    void CommitEdit(int rowIndex, string[] row)
+    {
+        if (row.Length > 4)
+            row[4] = editingNotesValue;
+
+        CancelEdit();
+        SaveAllEntries();
+
+        ScreenMessages.PostScreenMessage("[MJASA] Note updated.", 2f, ScreenMessageStyle.UPPER_CENTER);
+        Debug.Log($"[MJASA] Note for entry {rowIndex} updated.");
+    }
+
+    void CancelEdit()
+    {
+        editingNotesIndex = -1;
+        editingNotesValue = "";
+        justOpenedEdit    = false;
+        editNotesScroll   = Vector2.zero;
     }
 
     // -------------------------------------------------------------------------
@@ -373,7 +470,7 @@ public class MJASA : MonoBehaviour
                 turnStartVelocity  = ascent.AutoTurnStartVelocity,
                 turnEndAltitude    = ascent.AutoTurnEndAltitude,
                 turnEndAngle       = ascent.TurnEndAngle,
-                turnShapeExponent  = ascent.TurnShapeExponent * 100,
+                turnShapeExponent  = ascent.TurnShapeExponent,
 
                 orbitAltitude      = ascent.DesiredOrbitAltitude,
                 autostage          = ascent._autostage,
@@ -445,13 +542,14 @@ public class MJASA : MonoBehaviour
 
         if (!File.Exists(path)) { Debug.Log("[MJASA] No archive file found at: " + path); return; }
 
-        string[] lines = File.ReadAllLines(path);
-        for (int i = 1; i < lines.Length; i++)
-        {
-            string line = lines[i].Trim();
-            if (!string.IsNullOrEmpty(line))
-                logEntries.Add(ParseCsvLine(line));
-        }
+        // Parse the whole file at once so the CSV parser can handle
+        // fields that contain escaped newlines (\n sequences)
+        string raw = File.ReadAllText(path);
+        List<string[]> all = ParseCsv(raw);
+
+        // Row 0 is the header — skip it
+        for (int i = 1; i < all.Count; i++)
+            logEntries.Add(all[i]);
 
         Debug.Log($"[MJASA] Loaded {logEntries.Count} archived entries.");
     }
@@ -471,27 +569,97 @@ public class MJASA : MonoBehaviour
         Debug.Log($"[MJASA] Archive rewritten with {logEntries.Count} entries.");
     }
 
-    string[] ParseCsvLine(string line)
+    // Parses a full CSV text (multiple rows) correctly handling quoted fields.
+    // Newlines inside quoted fields are preserved as \n sequences in the stored value.
+    List<string[]> ParseCsv(string text)
     {
-        var  fields   = new List<string>();
+        var rows    = new List<string[]>();
+        var fields  = new List<string>();
+        var current = new System.Text.StringBuilder();
         bool inQuotes = false;
-        var  current  = new System.Text.StringBuilder();
 
-        foreach (char c in line)
+        // Normalise line endings
+        text = text.Replace("\r\n", "\n").Replace("\r", "\n");
+
+        for (int i = 0; i < text.Length; i++)
         {
-            if (c == '"')                   inQuotes = !inQuotes;
-            else if (c == ',' && !inQuotes) { fields.Add(current.ToString()); current.Clear(); }
-            else                            current.Append(c);
+            char c = text[i];
+
+            if (inQuotes)
+            {
+                if (c == '"')
+                {
+                    // Escaped quote ""
+                    if (i + 1 < text.Length && text[i + 1] == '"')
+                    {
+                        current.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else if (c == '\n')
+                {
+                    // Real newline inside a quoted field — should not happen with
+                    // our encoding, but handle gracefully
+                    current.Append('\n');
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+            else
+            {
+                if (c == '"')
+                {
+                    inQuotes = true;
+                }
+                else if (c == ',')
+                {
+                    fields.Add(DecodeField(current.ToString()));
+                    current.Clear();
+                }
+                else if (c == '\n')
+                {
+                    // End of row
+                    fields.Add(DecodeField(current.ToString()));
+                    current.Clear();
+                    if (fields.Count > 0)
+                        rows.Add(fields.ToArray());
+                    fields.Clear();
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
         }
-        fields.Add(current.ToString());
-        return fields.ToArray();
+
+        // Last field / row (file may not end with newline)
+        if (current.Length > 0 || fields.Count > 0)
+        {
+            fields.Add(DecodeField(current.ToString()));
+            if (fields.Count > 0)
+                rows.Add(fields.ToArray());
+        }
+
+        return rows;
     }
 
+    // Decodes \\n escape sequences back to real newlines for display
+    string DecodeField(string value) =>
+        value.Replace("\\n", "\n");
+
+    // Encodes a value for CSV: escapes \n as \\n, wraps in quotes if needed
     string CsvCell(string value)
     {
         if (value == null) value = "";
-        value = value.Replace("\r", "").Replace("\n", " ");
-        if (value.Contains(",") || value.Contains("\""))
+        value = value.Replace("\r", "");          // strip \r
+        value = value.Replace("\n", "\\n");       // encode newlines as \n escape
+        if (value.Contains(",") || value.Contains("\"") || value.Contains("\\n"))
             value = "\"" + value.Replace("\"", "\"\"") + "\"";
         return value;
     }
