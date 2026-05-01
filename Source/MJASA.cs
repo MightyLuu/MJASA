@@ -82,9 +82,9 @@ public class MJASA : MonoBehaviour
     private static readonly int[] TURNPATH_COLS  = { 0, 1, 3, 10, 5, 6, 7, 8, 9 };
     private static readonly int[] STAGING_COLS   = { 0, 1, 3, 12, 13, 14, 15, 16 };
 
-    private static readonly string[] MISSION_LABELS  = { "KSP time", "Vessel", "Mission", "Notes" };
-    private static readonly string[] TURNPATH_LABELS = { "KSP time", "Vessel", "Mission", "Orbit alt", "Start alt", "Start vel", "End alt", "End angle", "Shape %" };
-    private static readonly string[] STAGING_LABELS  = { "KSP time", "Vessel", "Mission", "Autostage limit", "Pre delay", "Post delay", "Hotstaging", "Lead time" };
+    private static readonly string[] MISSION_LABELS  = { "Date", "Vessel", "Mission", "Notes" };
+    private static readonly string[] TURNPATH_LABELS = { "Date", "Vessel", "Mission", "Orbit alt", "Start alt", "Start vel", "End alt", "End angle", "Shape %" };
+    private static readonly string[] STAGING_LABELS  = { "Date", "Vessel", "Mission", "Autostage limit", "Pre delay", "Post delay", "Hotstaging", "Lead time" };
 
     private static readonly int[] MISSION_WIDTHS  = { 150, 110, 120, 190 };
     private static readonly int[] TURNPATH_WIDTHS = { 150, 100, 100,  75,  65,  65,  65,  70,  65 };
@@ -470,7 +470,7 @@ public class MJASA : MonoBehaviour
                 turnStartVelocity  = ascent.AutoTurnStartVelocity,
                 turnEndAltitude    = ascent.AutoTurnEndAltitude,
                 turnEndAngle       = ascent.TurnEndAngle,
-                turnShapeExponent  = ascent.TurnShapeExponent,
+                turnShapeExponent  = ascent.TurnShapeExponent * 100,
 
                 orbitAltitude      = ascent.DesiredOrbitAltitude,
                 autostage          = ascent._autostage,
