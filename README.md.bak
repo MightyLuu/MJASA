@@ -8,7 +8,7 @@ with an in-game history viewer grouped by Mission, Turn Path and Staging.
 - MechJeb2
 
 ## Installation
-Place the `MJASA` folder into your KSP `GameData` directory.
+Place the `GameData/MJASA` folder into your KSP `GameData` directory.
 
 ## Usage
 1. Open the MJASA panel via the toolbar button (flight scene only)
