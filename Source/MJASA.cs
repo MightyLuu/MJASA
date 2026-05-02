@@ -31,7 +31,7 @@ public class MJASA : MonoBehaviour
     private bool showHistory = false;
 
     private Rect loggerRect  = new Rect(200, 200, 280, 180);
-    private Rect historyRect = new Rect(80, 80, 820, 460);
+    private Rect historyRect = new Rect(80, 80, 1000, 460);
 
     private string  missionTitle = "";
     private string  notes        = "";
@@ -84,11 +84,11 @@ public class MJASA : MonoBehaviour
 
     private static readonly string[] MISSION_LABELS  = { "Date", "Vessel", "Mission", "Notes" };
     private static readonly string[] TURNPATH_LABELS = { "Date", "Vessel", "Mission", "Orbit alt", "Start alt", "Start vel", "End alt", "End angle", "Shape %" };
-    private static readonly string[] STAGING_LABELS  = { "Date", "Vessel", "Mission", "Autostage limit", "Pre delay", "Post delay", "Hotstaging", "Lead time" };
+    private static readonly string[] STAGING_LABELS  = { "Date", "Vessel", "Mission", "Stage stop", "Pre delay", "Post delay", "Hotstaging", "Lead time" };
 
-    private static readonly int[] MISSION_WIDTHS  = { 150, 110, 120, 190 };
-    private static readonly int[] TURNPATH_WIDTHS = { 150, 100, 100,  75,  65,  65,  65,  70,  65 };
-    private static readonly int[] STAGING_WIDTHS  = { 150, 110, 100,  70,  70,  70,  75,  70 };
+    private static readonly int[] MISSION_WIDTHS  = { 120, 130, 130, 300 };
+    private static readonly int[] TURNPATH_WIDTHS = { 120, 130, 130,  90,  90,  90,  90,  90,  90 };
+    private static readonly int[] STAGING_WIDTHS  = { 120, 130, 130,  90,  90,  90,  90,  90 };
 
     // -------------------------------------------------------------------------
     // Lifecycle
@@ -272,7 +272,7 @@ public class MJASA : MonoBehaviour
             for (int c = 0; c < labels.Length; c++)
                 GUILayout.Label($"<b>{labels[c]}</b>", GUILayout.Width(widths[c]));
             if (isMission)
-                GUILayout.Label("<b>Actions</b>", GUILayout.Width(112));
+                GUILayout.Label("<b>Actions</b>", GUILayout.Width(160));
             GUILayout.EndHorizontal();
 
             GUILayout.Space(3);
@@ -315,21 +315,21 @@ public class MJASA : MonoBehaviour
                     if (isEditing)
                     {
                         // Save / Cancel while editing
-                        if (GUILayout.Button("Save", GUILayout.Width(46)))
+                        if (GUILayout.Button("Save", GUILayout.Width(70)))
                             CommitEdit(r, row);
-                        if (GUILayout.Button("X", GUILayout.Width(24)))
+                        if (GUILayout.Button("X", GUILayout.Width(36)))
                             CancelEdit();
                     }
                     else if (isPendingDelete)
                     {
-                        if (GUILayout.Button("Del", GUILayout.Width(36))) deleteTarget = r;
-                        if (GUILayout.Button("No",  GUILayout.Width(36))) pendingDeleteIndex = -1;
+                        if (GUILayout.Button("Delete", GUILayout.Width(70))) deleteTarget = r;
+                        if (GUILayout.Button("X",  GUILayout.Width(36))) pendingDeleteIndex = -1;
                     }
                     else
                     {
-                        if (GUILayout.Button("Edit", GUILayout.Width(40)))
+                        if (GUILayout.Button("Edit note", GUILayout.Width(70)))
                             OpenEdit(r, row);
-                        if (GUILayout.Button("Delete", GUILayout.Width(56)))
+                        if (GUILayout.Button("Del", GUILayout.Width(36)))
                         {
                             pendingDeleteIndex = r;
                             CancelEdit();
